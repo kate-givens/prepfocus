@@ -20,7 +20,7 @@ import {
   ==========================================
 */
 // 🔴 STEP 1: PASTE YOUR GEMINI API KEY HERE 🔴
-const GEMINI_API_KEY = ""; 
+const GEMINI_API_KEY = "AIzaSyARwfCkqtW3OMo54lsjEDQFCPYnz0VKXmw"; 
 
 // Global declarations for injected variables
 declare global {
