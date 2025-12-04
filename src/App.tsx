@@ -187,6 +187,35 @@ const formatText = (text: any) => {
   ==========================================
 */
 
+const cleanJSON = (jsonStr: string) => {
+  // 1. Replace literal double backslashes (\\) with a safe placeholder
+  //    (Gemini might output \\sin for \sin)
+  let clean = jsonStr.replace(/\\\\/g, '___DOUBLE_SLASH___');
+  
+  // 2. Replace valid JSON escapes (\n, \", etc) with safe placeholders
+  clean = clean.replace(/\\"/g, '___QUOTE___')
+               .replace(/\\n/g, '___NEWLINE___')
+               .replace(/\\r/g, '___RETURN___')
+               .replace(/\\t/g, '___TAB___')
+               .replace(/\\b/g, '___BACKSPACE___')
+               .replace(/\\f/g, '___FORMFEED___');
+
+  // 3. Now, any remaining backslashes are "bad" (math) backslashes.
+  //    We escape them. (\sin -> \\sin)
+  clean = clean.replace(/\\/g, '\\\\');
+
+  // 4. Restore placeholders
+  clean = clean.replace(/___DOUBLE_SLASH___/g, '\\\\') 
+               .replace(/___QUOTE___/g, '\\"')
+               .replace(/___NEWLINE___/g, '\\n')
+               .replace(/___RETURN___/g, '\\r')
+               .replace(/___TAB___/g, '\\t')
+               .replace(/___BACKSPACE___/g, '\\b')
+               .replace(/___FORMFEED___/g, '\\f');
+               
+  return clean;
+};
+
 const callGemini = async (apiKey: string, prompt: string) => {
   try {
     const response = await fetch(
@@ -205,30 +234,7 @@ const callGemini = async (apiKey: string, prompt: string) => {
     
     if (text) {
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      
-      // Robust JSON Sanitizer
-      const PLACEHOLDERS: Record<string, string> = {
-        '\\\"': '___QUOTE___',
-        '\\\\': '___BACKSLASH___',
-        '\\/': '___SLASH___',
-        '\\b': '___B___',
-        '\\f': '___F___',
-        '\\n': '___N___',
-        '\\r': '___R___',
-        '\\t': '___T___'
-      };
-      
-      for (const [esc, ph] of Object.entries(PLACEHOLDERS)) {
-         text = text.split(esc).join(ph);
-      }
-      
-      // Escape invalid backslashes
-      text = text.replace(/\\/g, '\\\\');
-      
-      // Restore valid escapes
-      for (const [esc, ph] of Object.entries(PLACEHOLDERS)) {
-         text = text.split(ph).join(esc);
-      }
+      text = cleanJSON(text);
     }
     
     try {
@@ -820,14 +826,9 @@ const DiagnosticView = ({ onComplete, onSkip }: { onComplete: (data: any) => voi
         </div>
 
         <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Question {currentIndex + 1} of {questions.length}
-             </span>
-             <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
-                {activeQ.domain}
-             </span>
-          </div>
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">
+            Domain: {activeQ.domain}
+          </span>
           <p className="text-lg font-medium text-slate-800 leading-relaxed font-serif">
             {formatText(activeQ.question)}
           </p>
@@ -999,6 +1000,7 @@ const StudentView = ({ user, onLogout }: { user: User | null, onLogout: () => vo
         if (questions && Array.isArray(questions)) {
           setQuizQuestions(questions);
         } else {
+          // It's safer to handle error in the UI than to set empty array which might cause other issues
           console.error("Failed to generate quiz: Invalid format");
           alert("Failed to generate questions. Please try again.");
           setMode('dashboard');
